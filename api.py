@@ -1,3 +1,21 @@
+from flask import Flask, jsonify, request
+from flask_cors import CORS
+import sqlite3
+
+app = Flask(__name__)
+CORS(app)
+
+DB_PATH = 'products.db'
+
+# Helper function to get DB connection
+def get_db_connection():
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+# -------------------- Departments APIs --------------------
+
+# GET /api/departments - list all departments with product counts
 @app.route('/api/departments', methods=['GET'])
 def get_departments():
     try:
@@ -18,6 +36,8 @@ def get_departments():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+
+# GET /api/departments/<id> - Get a single department with its product count
 @app.route('/api/departments/<int:dept_id>', methods=['GET'])
 def get_department(dept_id):
     try:
@@ -28,6 +48,7 @@ def get_department(dept_id):
         if not row:
             conn.close()
             return jsonify({"error": "Department not found"}), 404
+
         cur.execute('SELECT COUNT(*) FROM products WHERE department_id = ?', (dept_id,))
         product_count = cur.fetchone()[0]
         conn.close()
@@ -35,6 +56,8 @@ def get_department(dept_id):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+
+# GET /api/departments/<id>/products - list products in a department
 @app.route('/api/departments/<int:dept_id>/products', methods=['GET'])
 def get_department_products(dept_id):
     try:
@@ -45,6 +68,7 @@ def get_department_products(dept_id):
         if not dept_row:
             conn.close()
             return jsonify({"error": "Department not found"}), 404
+
         department_name = dept_row[0]
         cur.execute('SELECT * FROM products WHERE department_id = ?', (dept_id,))
         products = [dict(row) for row in cur.fetchall()]
@@ -52,44 +76,38 @@ def get_department_products(dept_id):
         return jsonify({"department": department_name, "products": products})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-from flask import Flask, jsonify, request
-from flask_cors import CORS
-import sqlite3
 
-app = Flask(__name__)
-CORS(app)
-DB_PATH = 'products.db'
+# -------------------- Products APIs --------------------
 
-# Helper function to get DB connection
-def get_db_connection():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
-
-# GET /api/products - List all products (with pagination)
+# GET /api/products - List all products (paginated)
 @app.route('/api/products', methods=['GET'])
 def get_products():
     try:
         page = int(request.args.get('page', 1))
         per_page = int(request.args.get('per_page', 20))
         offset = (page - 1) * per_page
+
         conn = get_db_connection()
         cur = conn.cursor()
+
         cur.execute('SELECT COUNT(*) FROM products')
         total = cur.fetchone()[0]
+
         cur.execute('''
             SELECT p.*, d.name as department_name
             FROM products p
             LEFT JOIN departments d ON p.department_id = d.id
             LIMIT ? OFFSET ?
         ''', (per_page, offset))
+
         products = []
         for row in cur.fetchall():
             prod = dict(row)
-            # Replace department field with department_name
             prod['department'] = prod.pop('department_name', None)
             products.append(prod)
+
         conn.close()
+
         return jsonify({
             'products': products,
             'page': page,
@@ -98,6 +116,7 @@ def get_products():
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
 
 # GET /api/products/<id> - Get a specific product by ID
 @app.route('/api/products/<int:product_id>', methods=['GET'])
@@ -121,6 +140,7 @@ def get_product(product_id):
             return jsonify({'error': 'Product not found'}), 404
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
 
 if __name__ == '__main__':
     app.run(debug=True)
