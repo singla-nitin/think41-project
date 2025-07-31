@@ -1,3 +1,57 @@
+@app.route('/api/departments', methods=['GET'])
+def get_departments():
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute('''
+            SELECT d.id, d.name, COUNT(p.id) as product_count
+            FROM departments d
+            LEFT JOIN products p ON d.id = p.department_id
+            GROUP BY d.id
+        ''')
+        departments = [
+            {"id": row[0], "name": row[1], "product_count": row[2]}
+            for row in cur.fetchall()
+        ]
+        conn.close()
+        return jsonify({"departments": departments})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/departments/<int:dept_id>', methods=['GET'])
+def get_department(dept_id):
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute('SELECT id, name FROM departments WHERE id = ?', (dept_id,))
+        row = cur.fetchone()
+        if not row:
+            conn.close()
+            return jsonify({"error": "Department not found"}), 404
+        cur.execute('SELECT COUNT(*) FROM products WHERE department_id = ?', (dept_id,))
+        product_count = cur.fetchone()[0]
+        conn.close()
+        return jsonify({"id": row[0], "name": row[1], "product_count": product_count})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/departments/<int:dept_id>/products', methods=['GET'])
+def get_department_products(dept_id):
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute('SELECT name FROM departments WHERE id = ?', (dept_id,))
+        dept_row = cur.fetchone()
+        if not dept_row:
+            conn.close()
+            return jsonify({"error": "Department not found"}), 404
+        department_name = dept_row[0]
+        cur.execute('SELECT * FROM products WHERE department_id = ?', (dept_id,))
+        products = [dict(row) for row in cur.fetchall()]
+        conn.close()
+        return jsonify({"department": department_name, "products": products})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 import sqlite3
