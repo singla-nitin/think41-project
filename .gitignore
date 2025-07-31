@@ -1,0 +1,8 @@
+products-frontend/node_modules/
+products-frontend/package-lock.json
+products-frontend/.env
+products-frontend/build/
+__pycache__/
+*.pyc
+.env
+.DS_Store
