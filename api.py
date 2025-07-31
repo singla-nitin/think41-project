@@ -23,8 +23,18 @@ def get_products():
         cur = conn.cursor()
         cur.execute('SELECT COUNT(*) FROM products')
         total = cur.fetchone()[0]
-        cur.execute('SELECT * FROM products LIMIT ? OFFSET ?', (per_page, offset))
-        products = [dict(row) for row in cur.fetchall()]
+        cur.execute('''
+            SELECT p.*, d.name as department_name
+            FROM products p
+            LEFT JOIN departments d ON p.department_id = d.id
+            LIMIT ? OFFSET ?
+        ''', (per_page, offset))
+        products = []
+        for row in cur.fetchall():
+            prod = dict(row)
+            # Replace department field with department_name
+            prod['department'] = prod.pop('department_name', None)
+            products.append(prod)
         conn.close()
         return jsonify({
             'products': products,
@@ -41,11 +51,18 @@ def get_product(product_id):
     try:
         conn = get_db_connection()
         cur = conn.cursor()
-        cur.execute('SELECT * FROM products WHERE id = ?', (product_id,))
+        cur.execute('''
+            SELECT p.*, d.name as department_name
+            FROM products p
+            LEFT JOIN departments d ON p.department_id = d.id
+            WHERE p.id = ?
+        ''', (product_id,))
         row = cur.fetchone()
         conn.close()
         if row:
-            return jsonify(dict(row))
+            prod = dict(row)
+            prod['department'] = prod.pop('department_name', None)
+            return jsonify(prod)
         else:
             return jsonify({'error': 'Product not found'}), 404
     except Exception as e:
